@@ -1,23 +1,28 @@
 import datetime
 from coach.utils import *
+import shutil
 import csv
 import json
-from sh import git
 import logging
-
+import os
                 
 def generate_coach_csv(output_directory='./'):
+    # Set up root data dir
+    root_filename = 'coach/cfb-data/automated/wiki/coach_tenure/'
+    
     # Clone data repository for updates - continue if already exists
+    from sh import git
     try:
-        git.clone('https://cfb-data-machine-user:y5^%WSk7DjfR@github.com/coffenbacher/cfb-data.git')
+        shutil.rmtree('coach/cfb-data/')
     except:
-        pass 
+        pass
+    git.clone('https://'+os.getenv('MACHINE_AUTH')+'@github.com/coffenbacher/cfb-data.git', 'coach/cfb-data/')
     
     # Set up logging
     logging.basicConfig(level='WARNING',
                     #format='%(asctime)s %(levelname)-8s %(message)s',
                     #datefmt='%a, %d %b %Y %H:%M:%S',
-                    filename='cfb-data/automated/wiki/coach_tenure/coach_tenure.log',
+                    filename= root_filename + 'coach_tenure.log',
                     filemode='w')
     
     # Extract all current names from Wiki
@@ -25,7 +30,7 @@ def generate_coach_csv(output_directory='./'):
     
     # Extract the tenures for the names we have
     tenures = []
-    for name in names[:10]:
+    for name in names:
         additional = extract_coach_tenures(name)
         tenures.extend(additional)
         
@@ -33,13 +38,13 @@ def generate_coach_csv(output_directory='./'):
     tenures = filter_tenures_to_valid(tenures)
     
     # Write everything to disk
-    with open('cfb-data/automated/wiki/coach_tenure/coach_tenure.csv', 'w') as csvfile:
+    with open(root_filename + 'coach_tenure.csv', 'w') as csvfile:
         fieldnames = ['name', 'team', 'position', 'startyear', 'endyear']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         for t in tenures:
             writer.writerow(t)
     
-    with open('cfb-data/automated/wiki/coach_tenure/coach_tenure_meta.json', 'w') as metafile:
+    with open(root_filename + 'coach_tenure_meta.json', 'w') as metafile:
         d = {
                 'created': datetime.datetime.now().strftime('%x %X'),
                 'rows': len(tenures),
@@ -47,8 +52,9 @@ def generate_coach_csv(output_directory='./'):
             }
         metafile.write(json.dumps(d))
         
-    git.bake(**{'git-dir': 'cfb-data/.git/', 'work-tree': 'cfb-data'})
+    git = git.bake(**{'git-dir': 'coach/cfb-data/.git/', 'work-tree': 'coach/cfb-data'})
     git.commit(m='Auto updating coach_tenure data', a=True)
+    git.push('origin', 'master')
     
     
 if __name__ == '__main__':
