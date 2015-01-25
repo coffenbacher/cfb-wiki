@@ -15,3 +15,4 @@ src
 tmp
 throttle.ctrl
 apicache
+*.csv
