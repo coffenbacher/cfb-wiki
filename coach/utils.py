@@ -3,7 +3,7 @@ import wikipedia
 from pywikibot import Page, Site, NoPage, IsRedirectPage
 import re
 import datetime
-import logging; logging.basicConfig(); log = logging.getLogger(); log.setLevel('WARNING')
+import logging;
 
 
 def extract_coach_tenures(name):
@@ -16,14 +16,14 @@ def extract_coach_tenures(name):
     Returns:
     - list(dict)
     """
-    log.info('Looking for coach %s' % name)
+    logging.info('Looking for coach %s' % name)
     page_name = get_page_name_from_coach_name_wiki(name)
     
     # If we can't find a wikipedia page, return immediately
     if not page_name:
         return []
     else:
-        log.debug('Looking up %s as http://en.wikipedia.org/wiki/%s' % (name, page_name))
+        logging.debug('Looking up %s as http://en.wikipedia.org/wiki/%s' % (name, page_name))
     
     # Extract page content from wikipedia and narrow it down to the templates
     p = Page(Site('en', 'wikipedia'), page_name)
@@ -45,7 +45,7 @@ def extract_coach_tenures(name):
                 
     # If we were not able to extract information from the page, log & return empty
     if not teams or not years:
-        log.warning('Could not extract data for coach: %s' % name)
+        logging.warning('ISSUE DETECTED: %s is valid page but no information extracted' % name)
         return []
     
     tenures = [dict(t[0].items() + t[1].items()) for t in zip(teams, years)]
@@ -53,7 +53,7 @@ def extract_coach_tenures(name):
     return tenures
     
 def parse_coach_teams_and_positions_from_wiki(teams_section):
-    log.debug('Parsing teams_section: %s' % unicode(teams_section))
+    logging.debug('Parsing teams_section: %s' % unicode(teams_section))
     
     results = []
     sections = re.split('<br.?.?>', unicode(teams_section.value))
@@ -63,19 +63,19 @@ def parse_coach_teams_and_positions_from_wiki(teams_section):
         
         # Get the team name
         p = '('.join(wikicode.split('(')[:-1]).strip()
-        d['team'] = p if p else wikicode
+        d['team'] = (p if p else wikicode).replace(u'\u2013', '-')
         
         # Get the position coach name
         p = re.findall('\(([\w/]+)\)(?=$)', wikicode)
-        d['position'] = p[0] if p else 'HC'
+        d['position'] = standardize_position_title(p[0] if p else 'HC')
         results.append(d)
     return results
     
 def parse_coach_years_from_wiki(years_section):
-    log.debug('Parsing years_section: %s' % unicode(years_section))
+    logging.debug('Parsing years_section: %s' % unicode(years_section))
     
     results = []
-    sections = re.split('<br.?.?>', unicode(years_section.value))
+    sections = re.split('<br.?.?>', unicode(years_section.value).lower())
     for wikicode in sections:
         d = {}
         s = wikicode.strip().split(u'\u2013')
@@ -95,7 +95,7 @@ def get_page_name_from_coach_name_wiki(name):
         if is_football_coach_wiki(page):
             return page
         else:
-            log.warning('%s is not a disambiguation page, and is not about football' % name)
+            logging.warning('''ISSUE DETECTED: %s is not about a football coach and there is no disambiguation page''' % name)
     
     except wikipedia.DisambiguationError as e:
         # Need to disambiguate to the coach
@@ -106,8 +106,8 @@ def get_page_name_from_coach_name_wiki(name):
                 page = option.replace(' ', '_')
                 if is_football_coach_wiki(option):
                     return page
-                log.warning('%s is not a disambiguation page, and is not about football' % name)
-        log.warning('Could not find %s in disambiguation page' % name)
+                logging.warning('ISSUE DETECTED: %s is a football page but no mention of coach' % name)
+        logging.warning('ISSUE DETECTED: %s could not be found in disambiguation page' % name)
         return None
     
     except wikipedia.PageError:
@@ -120,7 +120,13 @@ def is_football_coach_wiki(page):
         return 'football' in p.lower() and 'coach' in p.lower()
     except NoPage:
         return False
-    
+
+def standardize_position_title(position):
+    if 'assistant' in position:
+        return 'GA'
+    if 'ASST' in position:
+        return 'GA'
+    return position
 
 
 def get_names_current_coaches_and_coordinators():
@@ -141,3 +147,40 @@ def get_names_current_coaches_and_coordinators():
     for n in nameps:
         results.append(' '.join([unicode(p.value) for p in n.params[:2]]))
     return results
+    
+def filter_tenures_to_valid(tenures):
+    filtered = []
+    for t in tenures:
+        if is_valid_tenure(t):
+            filtered.append(t)
+        else:
+            logging.warning('ISSUE DETECTED: %s' % t)
+    
+    return filtered
+
+def is_valid_tenure(tenure):
+    try:
+        if int(tenure['startyear']) < 1800:
+            return False
+            
+        if int(tenure['endyear']) < 1800:
+            return False
+        
+        if int(tenure['endyear']) < int(tenure['startyear']):
+            return False
+            
+        if len(str(tenure['team'])) < 2 or len(str(tenure['team'])) > 30:
+            return False
+            
+        if len(str(tenure['position'])) < 1 or len(str(tenure['position'])) > 20:
+            return False
+            
+        if len(str(tenure['name'])) < 2 or len(str(tenure['name'])) > 20:
+            return False
+
+        return True
+    except:
+        return False
+    
+    
+    
