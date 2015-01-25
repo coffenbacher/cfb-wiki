@@ -47,7 +47,7 @@ def generate_coach_csv(output_directory='./'):
             }
         metafile.write(json.dumps(d))
         
-    git.bake(_cwd='cfb-data/')
+    git.bake(*{'git-dir': 'cfb-data/'})
     git.add('.')
     git.commit(m='Auto updating coach_tenure data')
     
