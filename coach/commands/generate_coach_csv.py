@@ -36,6 +36,7 @@ def generate_coach_csv(output_directory='./'):
         
     # Filter out broken tenures
     tenures = filter_tenures_to_valid(tenures)
+    tenures = sort_tenures(tenures)
     
     # Write everything to disk
     with open(root_filename + 'coach_tenure.csv', 'w') as csvfile:
