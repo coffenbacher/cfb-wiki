@@ -182,5 +182,5 @@ def is_valid_tenure(tenure):
     except:
         return False
     
-    
-    
+def sort_tenures(tenures):
+    return sorted(tenures, key=lambda k: k['name'])
