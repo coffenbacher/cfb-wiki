@@ -5,9 +5,14 @@ import csv
 import json
 import logging
 import os
+from unidecode import unidecode
+
 
 ROOT = 'team'
-                
+FIELDNAMES = ['team', 'name', 'city', 'state', 'conference', 'first_played', 'joined_fbs']
+FIELDNAMES = [unidecode(f) for f in FIELDNAMES]
+FN = extract_teams
+
 def generate_csv(output_directory='./'):
     # Set up root data dir
     root_filename = ROOT + '/cfb-data/automated/wiki/team/'
@@ -32,25 +37,30 @@ def generate_csv(output_directory='./'):
                     filemode='w')
     
     # Extract all current names from Wiki
-    teams = extract_teams()
+    data = FN()
     
     # Write everything to disk
-    with open(root_filename + 'team.csv', 'w') as csvfile:
-        fieldnames = ['team', 'name', 'city', 'state', 'conference', 'first_played', 'joined_fbs']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
-        for t in teams:
-            writer.writerow(t)
-    
-    with open(root_filename + 'team_meta.json', 'w') as metafile:
+    with open(root_filename + ROOT + '.csv', 'w') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=FIELDNAMES, extrasaction='ignore')
+        for d in data:
+            asci = dict([(unidecode(k), unidecode(unicode(v))) for k, v in d.items()])
+            writer.writerow(asci)
+            
+    # Write everything to json
+    with open(root_filename + ROOT + '.json', 'w') as jsonfile:
+        relevant = [{f: d.get(f, None) for f in FIELDNAMES} for d in data]
+        jsonfile.write(json.dumps(relevant))
+        
+    with open(root_filename + ROOT + '_meta.json', 'w') as metafile:
         d = {
                 'created': datetime.now().strftime('%x %X'),
-                'rows': len(teams),
-                'headers': ','.join(fieldnames),
+                'rows': len(data),
+                'headers': ','.join(FIELDNAMES),
             }
         metafile.write(json.dumps(d))
         
     git = git.bake(**{'git-dir': ROOT + '/cfb-data/.git/', 'work-tree': ROOT + '/cfb-data'})
-    git.commit(m='Auto updating team data', a=True)
+    git.commit(m='Auto updating %s data' % ROOT, a=True)
     git.push('origin', 'master')
     
     
